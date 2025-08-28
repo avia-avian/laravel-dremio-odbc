@@ -1,0 +1,14 @@
+/vendor
+/node_modules
+/.idea
+/.vscode
+/.phpunit.result.cache
+/.env
+/.DS_Store
+/tests/_output
+/.vagrant
+/.composer
+/.cache
+/.php_cs.cache
+*.log
+*.lock
