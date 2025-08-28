@@ -73,7 +73,7 @@ Namun untuk Laravel versi lama, tambahkan manual di `config/app.php`:
     App\Providers\AppServiceProvider::class,
 
     // Tambahkan ini:
-    AviaAvian\Odbc\OdbcServiceProvider::class,
+    AviaAvian\DremioOdbc\Providers\OdbcServiceProvider::class,
 ],
 ```
 
