@@ -9,7 +9,7 @@ class OdbcServiceProvider extends ServiceProvider
 {
     public function register()
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/dremio.php', 'dremio');
+        $this->mergeConfigFrom(__DIR__ . '/../config/dremio_odbc.php', 'dremio_odbc');
 
         $this->app['db']->extend('dremio', function ($config, $name) {
             $driver = $config['driver'] ?? 'Arrow Flight SQL ODBC Driver';
@@ -40,7 +40,7 @@ class OdbcServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->publishes([
-            __DIR__ . '/../config/dremio.php' => config_path('dremio.php'),
+            __DIR__ . '/../config/dremio_odbc.php' => config_path('dremio_odbc.php'),
         ], 'config');
     }
 }
