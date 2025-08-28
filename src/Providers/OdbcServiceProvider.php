@@ -12,7 +12,7 @@ class OdbcServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/dremio_odbc.php', 'dremio_odbc');
 
         $this->app['db']->extend('dremio', function ($config, $name) {
-            $driver = $config['driver'] ?? 'Arrow Flight SQL ODBC Driver';
+            $driver = $config['dsn'] ?? 'Arrow Flight SQL ODBC Driver';
             $encryption = $config['encryption'] ?? 1;
             $disableCert = $config['disable_cert_verification'] ?? 1;
 

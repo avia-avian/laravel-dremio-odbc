@@ -1,7 +1,8 @@
 <?php
 
 return [
-    'driver' => env('DB_ODBC_DRIVER', 'Arrow Flight SQL ODBC Driver'),
+    'driver' => 'odbc',
+    'dsn' => env('DB_ODBC_DRIVER', 'Arrow Flight SQL ODBC Driver'),
     'host' => env('DB_ODBC_HOST', 'localhost'),
     'port' => env('DB_ODBC_PORT', 32010),
     'database' => env('DB_ODBC_DATABASE', 'AVIAN'),

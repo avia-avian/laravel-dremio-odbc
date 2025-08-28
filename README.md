@@ -50,11 +50,12 @@ DREMIO_PASSWORD=secret
 
     'dremio' => [
         'driver'   => 'odbc',
-        'dsn'      => null, // akan dibuat otomatis oleh OdbcServiceProvider
+        'dsn'      => env('DREMIO_DRIVER', 'Arrow Flight SQL ODBC Driver'),
         'host'     => env('DREMIO_HOST', '127.0.0.1'),
         'port'     => env('DREMIO_PORT', '32010'),
         'username' => env('DREMIO_USERNAME'),
         'password' => env('DREMIO_PASSWORD'),
+        'database' => env('DREMIO_DATABASE', 'AVIAN'),
         'options'  => [],
     ],
 
