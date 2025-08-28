@@ -77,6 +77,16 @@ Namun untuk Laravel versi lama, tambahkan manual di `config/app.php`:
 ],
 ```
 
+### 4. Publish Config (opsional)
+
+Jika ingin mengubah konfigurasi default package, jalankan perintah:
+
+```bash
+php artisan vendor:publish --provider="AviaAvian\DremioOdbc\Providers\OdbcServiceProvider" --tag=config
+```
+
+Ini akan menghasilkan file `config/dremio_odbc.php` yang bisa kamu sesuaikan sesuai kebutuhan.
+
 ---
 
 ## 🛠️ Contoh Penggunaan
