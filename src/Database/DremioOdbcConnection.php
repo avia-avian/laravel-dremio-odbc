@@ -32,6 +32,7 @@ class DremioOdbcConnection extends Connection
         $rows = [];
 
         // cek apakah fungsi odbc_fetch_all ada
+        
         if (function_exists('odbc_fetch_all')) {
             odbc_fetch_all($result, $rows);
         } else {
