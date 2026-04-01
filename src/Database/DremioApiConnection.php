@@ -9,6 +9,7 @@ class DremioApiConnection extends Connection
 {
     protected array $apiConfig;
     protected string $caseOption;
+    protected ?string $cachedToken = null;
 
     public function __construct(array $apiConfig, $database = '', $tablePrefix = '', array $config = [])
     {
@@ -16,6 +17,65 @@ class DremioApiConnection extends Connection
 
         $this->apiConfig = $apiConfig;
         $this->caseOption = $config['case'] ?? 'original';
+    }
+
+    /**
+     * Get the API token, logging in with username/password if needed.
+     */
+    protected function resolveToken(): ?string
+    {
+        if ($this->cachedToken !== null) {
+            return $this->cachedToken;
+        }
+
+        if (!empty($this->apiConfig['api_token'])) {
+            $this->cachedToken = $this->apiConfig['api_token'];
+            return $this->cachedToken;
+        }
+
+        $username = $this->apiConfig['api_username'] ?? '';
+        $password = $this->apiConfig['api_password'] ?? '';
+
+        if ($username !== '' && $password !== '') {
+            $this->cachedToken = $this->login($username, $password);
+            return $this->cachedToken;
+        }
+
+        return null;
+    }
+
+    /**
+     * Login to Dremio API with username/password and return the token.
+     */
+    protected function login(string $username, string $password): string
+    {
+        $loginEndpoint = $this->apiConfig['api_login_endpoint'] ?? '/apiv2/login';
+        $url = rtrim($this->apiConfig['api_base_url'], '/') . '/' . ltrim($loginEndpoint, '/');
+
+        $http = Http::acceptJson()
+            ->timeout((int) ($this->apiConfig['api_timeout'] ?? 30));
+
+        if (!($this->apiConfig['api_verify_ssl'] ?? true)) {
+            $http = $http->withoutVerifying();
+        }
+
+        $response = $http->post($url, [
+            'userName' => $username,
+            'password' => $password,
+        ]);
+
+        if ($response->failed()) {
+            $body = $response->json() ?? [];
+            $message = $body['errorMessage'] ?? $body['message'] ?? ('HTTP ' . $response->status());
+            throw new \Exception('Dremio API login failed: ' . $message);
+        }
+
+        $token = $response->json('token');
+        if (empty($token)) {
+            throw new \Exception('Dremio API login succeeded but no token returned.');
+        }
+
+        return $token;
     }
 
     /**
@@ -99,8 +159,9 @@ class DremioApiConnection extends Connection
             $http = $http->withoutVerifying();
         }
 
-        if (!empty($this->apiConfig['api_token'])) {
-            $http = $http->withToken($this->apiConfig['api_token']);
+        $token = $this->resolveToken();
+        if (!empty($token)) {
+            $http = $http->withToken($token);
         }
 
         $response = $http->send(strtoupper($method), $url, ['json' => $payload]);

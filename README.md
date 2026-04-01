@@ -62,10 +62,20 @@ DREMIO_PASSWORD=secret
 
 ### 2B. Konfigurasi mode API di `.env`
 
+Autentikasi bisa pakai **token** atau **username/password** (pilih salah satu):
+
 ```env
 DREMIO_API_BASE_URL=https://dremio.example.com
+
+# Opsi 1: Pakai Personal Access Token
 DREMIO_API_TOKEN=your_personal_access_token
+
+# Opsi 2: Pakai Username & Password (auto-login)
+DREMIO_API_USERNAME=software.engineer
+DREMIO_API_PASSWORD=secret
+
 DREMIO_API_SQL_ENDPOINT=/api/v3/sql
+DREMIO_API_LOGIN_ENDPOINT=/apiv2/login
 DREMIO_API_TIMEOUT=30
 DREMIO_API_VERIFY_SSL=true
 # optional: JSON array context
@@ -96,6 +106,9 @@ DREMIO_API_CONTEXT=["mySpace","myFolder"]
         // API
         'api_base_url' => env('DREMIO_API_BASE_URL', ''),
         'api_token' => env('DREMIO_API_TOKEN', ''),
+        'api_username' => env('DREMIO_API_USERNAME', ''),
+        'api_password' => env('DREMIO_API_PASSWORD', ''),
+        'api_login_endpoint' => env('DREMIO_API_LOGIN_ENDPOINT', '/apiv2/login'),
         'api_sql_endpoint' => env('DREMIO_API_SQL_ENDPOINT', '/api/v3/sql'),
         'api_timeout' => env('DREMIO_API_TIMEOUT', 30),
         'api_verify_ssl' => env('DREMIO_API_VERIFY_SSL', true),

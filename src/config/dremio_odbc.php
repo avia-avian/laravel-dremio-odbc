@@ -20,6 +20,9 @@ return [
     // API options (dipakai jika connection=api)
     'api_base_url' => env('DREMIO_API_BASE_URL', ''),
     'api_token' => env('DREMIO_API_TOKEN', ''),
+    'api_username' => env('DREMIO_API_USERNAME', ''),
+    'api_password' => env('DREMIO_API_PASSWORD', ''),
+    'api_login_endpoint' => env('DREMIO_API_LOGIN_ENDPOINT', '/apiv2/login'),
     'api_sql_endpoint' => env('DREMIO_API_SQL_ENDPOINT', '/api/v3/sql'),
     'api_timeout' => env('DREMIO_API_TIMEOUT', 30),
     'api_verify_ssl' => env('DREMIO_API_VERIFY_SSL', true),

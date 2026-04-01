@@ -350,4 +350,144 @@ class DremioApiConnectionTest extends TestCase
 
         $this->assertCount(1, $results);
     }
+
+    // --- Auto-login (username/password) tests ---
+
+    public function test_auto_login_with_username_password()
+    {
+        Http::fake([
+            'dremio.test/apiv2/login' => Http::response(['token' => 'auto-token-123']),
+            'dremio.test/api/v3/sql' => Http::response(['rows' => [['id' => 1]]]),
+        ]);
+
+        $conn = $this->makeConnection([
+            'api_token' => '',
+            'api_username' => 'myuser',
+            'api_password' => 'mypass',
+        ]);
+        $results = $conn->select('SELECT 1');
+
+        // Login request
+        Http::assertSent(function (Request $request) {
+            if ($request->url() === 'https://dremio.test/apiv2/login') {
+                $data = $request->data();
+                return $data['userName'] === 'myuser' && $data['password'] === 'mypass';
+            }
+            return false;
+        });
+
+        // SQL request uses the obtained token
+        Http::assertSent(function (Request $request) {
+            if ($request->url() === 'https://dremio.test/api/v3/sql') {
+                return $request->hasHeader('Authorization', 'Bearer auto-token-123');
+            }
+            return false;
+        });
+
+        $this->assertCount(1, $results);
+    }
+
+    public function test_auto_login_caches_token_across_calls()
+    {
+        Http::fake([
+            'dremio.test/apiv2/login' => Http::response(['token' => 'cached-token']),
+            'dremio.test/api/v3/sql' => Http::response(['rows' => []]),
+        ]);
+
+        $conn = $this->makeConnection([
+            'api_token' => '',
+            'api_username' => 'user',
+            'api_password' => 'pass',
+        ]);
+
+        $conn->select('SELECT 1');
+        $conn->select('SELECT 2');
+
+        // Login should only be called once
+        $loginRequests = Http::recorded(function (Request $request) {
+            return $request->url() === 'https://dremio.test/apiv2/login';
+        });
+
+        $this->assertCount(1, $loginRequests);
+    }
+
+    public function test_auto_login_throws_on_failed_login()
+    {
+        Http::fake([
+            'dremio.test/apiv2/login' => Http::response([
+                'errorMessage' => 'Invalid credentials',
+            ], 401),
+        ]);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Dremio API login failed: Invalid credentials');
+
+        $conn = $this->makeConnection([
+            'api_token' => '',
+            'api_username' => 'bad',
+            'api_password' => 'creds',
+        ]);
+        $conn->select('SELECT 1');
+    }
+
+    public function test_auto_login_throws_when_no_token_returned()
+    {
+        Http::fake([
+            'dremio.test/apiv2/login' => Http::response(['ok' => true]),
+        ]);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('no token returned');
+
+        $conn = $this->makeConnection([
+            'api_token' => '',
+            'api_username' => 'user',
+            'api_password' => 'pass',
+        ]);
+        $conn->select('SELECT 1');
+    }
+
+    public function test_auto_login_uses_custom_login_endpoint()
+    {
+        Http::fake([
+            'dremio.test/custom/login' => Http::response(['token' => 'tok']),
+            'dremio.test/api/v3/sql' => Http::response(['rows' => []]),
+        ]);
+
+        $conn = $this->makeConnection([
+            'api_token' => '',
+            'api_username' => 'user',
+            'api_password' => 'pass',
+            'api_login_endpoint' => '/custom/login',
+        ]);
+        $conn->select('SELECT 1');
+
+        Http::assertSent(function (Request $request) {
+            return $request->url() === 'https://dremio.test/custom/login';
+        });
+    }
+
+    public function test_token_takes_priority_over_username_password()
+    {
+        Http::fake([
+            'dremio.test/api/v3/sql' => Http::response(['rows' => []]),
+        ]);
+
+        $conn = $this->makeConnection([
+            'api_token' => 'explicit-token',
+            'api_username' => 'user',
+            'api_password' => 'pass',
+        ]);
+        $conn->select('SELECT 1');
+
+        // Should NOT call login endpoint
+        Http::assertNotSent(function (Request $request) {
+            return str_contains($request->url(), 'login');
+        });
+
+        // Should use the explicit token
+        Http::assertSent(function (Request $request) {
+            return $request->hasHeader('Authorization', 'Bearer explicit-token');
+        });
+    }
 }
