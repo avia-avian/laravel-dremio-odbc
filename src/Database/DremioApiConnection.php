@@ -161,7 +161,9 @@ class DremioApiConnection extends Connection
 
         $token = $this->resolveToken();
         if (!empty($token)) {
-            $http = $http->withToken($token);
+            $http = $http->withHeaders([
+                'Authorization' => '_dremio' . $token,
+            ]);
         }
 
         $response = $http->send(strtoupper($method), $url, ['json' => $payload]);

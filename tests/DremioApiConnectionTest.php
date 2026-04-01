@@ -184,7 +184,7 @@ class DremioApiConnectionTest extends TestCase
         });
     }
 
-    public function test_select_sends_bearer_token()
+    public function test_select_sends_dremio_token()
     {
         Http::fake([
             'dremio.test/api/v3/sql' => Http::response(['rows' => []]),
@@ -194,7 +194,7 @@ class DremioApiConnectionTest extends TestCase
         $conn->select('SELECT 1');
 
         Http::assertSent(function (Request $request) {
-            return $request->hasHeader('Authorization', 'Bearer my-secret-token');
+            return $request->hasHeader('Authorization', '_dremiomy-secret-token');
         });
     }
 
@@ -379,7 +379,7 @@ class DremioApiConnectionTest extends TestCase
         // SQL request uses the obtained token
         Http::assertSent(function (Request $request) {
             if ($request->url() === 'https://dremio.test/api/v3/sql') {
-                return $request->hasHeader('Authorization', 'Bearer auto-token-123');
+                return $request->hasHeader('Authorization', '_dremioauto-token-123');
             }
             return false;
         });
@@ -487,7 +487,7 @@ class DremioApiConnectionTest extends TestCase
 
         // Should use the explicit token
         Http::assertSent(function (Request $request) {
-            return $request->hasHeader('Authorization', 'Bearer explicit-token');
+            return $request->hasHeader('Authorization', '_dremioexplicit-token');
         });
     }
 }
