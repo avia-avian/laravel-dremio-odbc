@@ -150,27 +150,32 @@ foreach ($results as $row) {
 ## ❗ Troubleshooting
 
 ### Error `Data source name not found`
+
 Pastikan ODBC driver sudah diinstal dengan benar.
 
 ### Error SSL / Certificate
+
 Atur variabel `.env`:
+
 ```env
 DREMIO_ENCRYPTION=1
 DREMIO_DISABLE_CERTIFICATE_VERIFICATION=1
 ```
 
 ### Tidak bisa connect ke Dremio
+
 Periksa apakah port `32010` terbuka dan service Dremio aktif.
 
 ### Error API (`Dremio API base URL is required`)
+
 Pastikan saat `DREMIO_CONNECTION=api`, variabel `DREMIO_API_BASE_URL` sudah diisi.
 
 ---
 
 ## 📖 Dokumentasi Tambahan
 
-- [Dremio Drivers](https://www.dremio.com/drivers/)  
-- [Laravel Database Connections](https://laravel.com/docs/master/database#configuration)  
+- [Dremio Drivers](https://www.dremio.com/drivers/)
+- [Laravel Database Connections](https://laravel.com/docs/master/database#configuration)
 
 ---
 
