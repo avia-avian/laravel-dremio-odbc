@@ -32,7 +32,7 @@ class DremioOdbcConnection extends Connection
         $rows = [];
 
         // cek apakah fungsi odbc_fetch_all ada
-        
+
         if (function_exists('odbc_fetch_all')) {
             odbc_fetch_all($result, $rows);
         } else {
@@ -46,7 +46,7 @@ class DremioOdbcConnection extends Connection
             $rows = array_map(fn($row) => array_change_key_case($row, CASE_UPPER), $rows);
         }
 
-        return $rows;
+        return array_map(fn($row) => (object) $row, $rows);
     }
 
     /**

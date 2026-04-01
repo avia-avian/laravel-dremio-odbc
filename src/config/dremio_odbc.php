@@ -25,6 +25,8 @@ return [
     'api_login_endpoint' => env('DREMIO_API_LOGIN_ENDPOINT', '/apiv2/login'),
     'api_sql_endpoint' => env('DREMIO_API_SQL_ENDPOINT', '/api/v3/sql'),
     'api_timeout' => env('DREMIO_API_TIMEOUT', 30),
+    'api_poll_interval' => env('DREMIO_API_POLL_INTERVAL', 500), // ms
+    'api_results_limit' => env('DREMIO_API_RESULTS_LIMIT', 500),
     'api_verify_ssl' => env('DREMIO_API_VERIFY_SSL', true),
     // Gunakan format JSON array di .env, contoh: ["mySpace","myFolder"]
     'api_context' => env('DREMIO_API_CONTEXT', null),

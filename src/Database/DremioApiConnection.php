@@ -52,12 +52,7 @@ class DremioApiConnection extends Connection
         $loginEndpoint = $this->apiConfig['api_login_endpoint'] ?? '/apiv2/login';
         $url = rtrim($this->apiConfig['api_base_url'], '/') . '/' . ltrim($loginEndpoint, '/');
 
-        $http = Http::acceptJson()
-            ->timeout((int) ($this->apiConfig['api_timeout'] ?? 30));
-
-        if (!($this->apiConfig['api_verify_ssl'] ?? true)) {
-            $http = $http->withoutVerifying();
-        }
+        $http = $this->buildHttp();
 
         $response = $http->post($url, [
             'userName' => $username,
@@ -79,20 +74,15 @@ class DremioApiConnection extends Connection
     }
 
     /**
-     * Run a select statement and return results as array.
+     * Submit SQL, wait for job completion, then fetch and return result rows.
      */
     public function select($query, $bindings = [], $useReadPdo = true)
     {
         $query = $this->applyBindings($query, $bindings);
 
-        $payload = ['sql' => $query];
-        if (!empty($this->apiConfig['api_context'])) {
-            $payload['context'] = $this->apiConfig['api_context'];
-        }
-
-        $response = $this->request('POST', $this->apiConfig['api_sql_endpoint'], $payload);
-
-        $rows = $this->extractRows($response);
+        $jobId = $this->submitSql($query);
+        $this->waitForJob($jobId);
+        $rows = $this->fetchJobResults($jobId);
 
         if ($this->caseOption === 'lower') {
             $rows = array_map(fn($row) => array_change_key_case($row, CASE_LOWER), $rows);
@@ -100,64 +90,144 @@ class DremioApiConnection extends Connection
             $rows = array_map(fn($row) => array_change_key_case($row, CASE_UPPER), $rows);
         }
 
-        return $rows;
+        return array_map(fn($row) => (object) $row, $rows);
     }
 
     /**
-     * Run a general statement (DDL / DML without result set).
+     * Submit SQL and wait for completion (DDL / DML without result set).
      */
     public function statement($query, $bindings = [])
     {
         $query = $this->applyBindings($query, $bindings);
 
-        $payload = ['sql' => $query];
-        if (!empty($this->apiConfig['api_context'])) {
-            $payload['context'] = $this->apiConfig['api_context'];
-        }
-
-        $this->request('POST', $this->apiConfig['api_sql_endpoint'], $payload);
+        $jobId = $this->submitSql($query);
+        $this->waitForJob($jobId);
 
         return true;
     }
 
     /**
-     * Run a statement that affects rows (UPDATE / DELETE / INSERT).
+     * Submit SQL, wait for completion, return affected row count.
      */
     public function affectingStatement($query, $bindings = [])
     {
         $query = $this->applyBindings($query, $bindings);
 
-        $payload = ['sql' => $query];
+        $jobId = $this->submitSql($query);
+        $job = $this->waitForJob($jobId);
+
+        return (int) ($job['rowCount'] ?? 0);
+    }
+
+    /**
+     * Submit a SQL query to Dremio and return the job ID.
+     */
+    protected function submitSql(string $sql): string
+    {
+        $payload = ['sql' => $sql];
         if (!empty($this->apiConfig['api_context'])) {
             $payload['context'] = $this->apiConfig['api_context'];
         }
 
-        $response = $this->request('POST', $this->apiConfig['api_sql_endpoint'], $payload);
+        $endpoint = $this->apiConfig['api_sql_endpoint'] ?? '/api/v3/sql';
+        $response = $this->request('POST', $endpoint, $payload);
 
-        if (isset($response['rowCount']) && is_numeric($response['rowCount'])) {
-            return (int) $response['rowCount'];
+        if (empty($response['id'])) {
+            throw new \Exception('Dremio API did not return a job ID.');
         }
 
-        if (isset($response['affectedRows']) && is_numeric($response['affectedRows'])) {
-            return (int) $response['affectedRows'];
-        }
-
-        return 0;
+        return $response['id'];
     }
 
     /**
-     * Make request to Dremio REST API using Illuminate HTTP client.
+     * Poll the job status until it reaches a terminal state.
+     * Returns the final job status response.
      */
-    protected function request(string $method, string $endpoint, array $payload = []): array
+    protected function waitForJob(string $jobId): array
     {
-        $url = rtrim($this->apiConfig['api_base_url'], '/') . '/' . ltrim($endpoint, '/');
+        $pollInterval = (int) ($this->apiConfig['api_poll_interval'] ?? 500); // ms
+        $maxWait = (int) ($this->apiConfig['api_timeout'] ?? 30);
+        $elapsed = 0;
 
+        while (true) {
+            $job = $this->request('GET', "/api/v3/job/{$jobId}");
+            $state = $job['jobState'] ?? 'UNKNOWN';
+
+            if ($state === 'COMPLETED') {
+                return $job;
+            }
+
+            if (in_array($state, ['FAILED', 'CANCELED', 'CANCELLED'], true)) {
+                $errorMsg = $job['errorMessage'] ?? $job['failureInfo']['message'] ?? ('Job ' . $state);
+                throw new \Exception('Dremio job failed: ' . $errorMsg);
+            }
+
+            // States: ENQUEUED, STARTING, RUNNING, etc. — keep polling
+            $sleepSeconds = $pollInterval / 1000;
+            $elapsed += $sleepSeconds;
+
+            if ($elapsed >= $maxWait) {
+                throw new \Exception("Dremio job {$jobId} timed out after {$maxWait}s (state: {$state}).");
+            }
+
+            usleep($pollInterval * 1000);
+        }
+    }
+
+    /**
+     * Fetch all result rows for a completed job, handling pagination.
+     */
+    protected function fetchJobResults(string $jobId): array
+    {
+        $offset = 0;
+        $limit = (int) ($this->apiConfig['api_results_limit'] ?? 500);
+        $allRows = [];
+
+        while (true) {
+            $response = $this->request('GET', "/api/v3/job/{$jobId}/results?offset={$offset}&limit={$limit}");
+
+            $rows = $response['rows'] ?? [];
+            if (empty($rows)) {
+                break;
+            }
+
+            foreach ($rows as $row) {
+                $allRows[] = $row;
+            }
+
+            if (count($rows) < $limit) {
+                break;
+            }
+
+            $offset += $limit;
+        }
+
+        return $allRows;
+    }
+
+    /**
+     * Build an HTTP client instance with common settings.
+     */
+    protected function buildHttp()
+    {
         $http = Http::acceptJson()
             ->timeout((int) ($this->apiConfig['api_timeout'] ?? 30));
 
         if (!($this->apiConfig['api_verify_ssl'] ?? true)) {
             $http = $http->withoutVerifying();
         }
+
+        return $http;
+    }
+
+    /**
+     * Make an authenticated request to Dremio REST API.
+     */
+    protected function request(string $method, string $endpoint, array $payload = []): array
+    {
+        $url = rtrim($this->apiConfig['api_base_url'], '/') . '/' . ltrim($endpoint, '/');
+
+        $http = $this->buildHttp();
 
         $token = $this->resolveToken();
         if (!empty($token)) {
@@ -166,7 +236,8 @@ class DremioApiConnection extends Connection
             ]);
         }
 
-        $response = $http->send(strtoupper($method), $url, ['json' => $payload]);
+        $options = strtoupper($method) === 'GET' ? [] : ['json' => $payload];
+        $response = $http->send(strtoupper($method), $url, $options);
 
         if ($response->failed()) {
             $body = $response->json() ?? [];
@@ -180,30 +251,6 @@ class DremioApiConnection extends Connection
         }
 
         return $decoded;
-    }
-
-    /**
-     * Normalize possible result payload shapes into row array.
-     */
-    protected function extractRows(array $response): array
-    {
-        if (isset($response['rows']) && is_array($response['rows'])) {
-            return $response['rows'];
-        }
-
-        if (isset($response['data']) && is_array($response['data'])) {
-            return $response['data'];
-        }
-
-        if (isset($response['results']) && is_array($response['results'])) {
-            return $response['results'];
-        }
-
-        if (isset($response['result']) && is_array($response['result'])) {
-            return $response['result'];
-        }
-
-        return [];
     }
 
     /**
